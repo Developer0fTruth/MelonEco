@@ -29,3 +29,6 @@ commands:
   pay:
     description: Pays another account
     usage: /pay <Account> <Amount> (Currency)
+  currencyticket:
+    description: Create a currency ticket for a player
+    usage: /currencyticket <Player> <Currency:Amount> [Currency:Amount...]

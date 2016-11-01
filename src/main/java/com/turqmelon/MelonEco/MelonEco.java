@@ -10,6 +10,7 @@ import com.turqmelon.MelonEco.commands.*;
 import com.turqmelon.MelonEco.data.DataStore;
 import com.turqmelon.MelonEco.data.MySQLStorage;
 import com.turqmelon.MelonEco.data.YamlStorage;
+import com.turqmelon.MelonEco.listeners.InteractListener;
 import com.turqmelon.MelonEco.listeners.JoinListener;
 import com.turqmelon.MelonEco.utils.RedisManager;
 import org.bukkit.plugin.Plugin;
@@ -76,6 +77,7 @@ public class MelonEco extends JavaPlugin {
         getDataStore().loadCurrencies();
 
         getServer().getPluginManager().registerEvents(new JoinListener(), this);
+        getServer().getPluginManager().registerEvents(new InteractListener(), this);
 
         getCommand("balance").setExecutor(new BalanceCommand());
         getCommand("baltop").setExecutor(new BalTopCommand());
@@ -84,6 +86,7 @@ public class MelonEco extends JavaPlugin {
         getCommand("ecotake").setExecutor(new EcoTakeCommand());
         getCommand("pay").setExecutor(new PayCommand());
         getCommand("currencies").setExecutor(new CurrencyCommand());
+        getCommand("currencyticket").setExecutor(new CurrencyTicketCommand());
 
         Plugin redisConnect = getServer().getPluginManager().getPlugin("RedisConnect");
         if (getDataStore().getName().equalsIgnoreCase("mysql") && redisConnect != null && redisConnect.isEnabled()) {

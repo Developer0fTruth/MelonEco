@@ -8,6 +8,7 @@ package com.turqmelon.MelonEco.commands;
 import com.turqmelon.MelonEco.MelonEco;
 import com.turqmelon.MelonEco.utils.AccountManager;
 import com.turqmelon.MelonEco.utils.Currency;
+import org.apache.commons.lang.StringUtils;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -51,6 +52,14 @@ public class CurrencyCommand implements CommandExecutor {
                             String plural = args[2];
 
                             if (AccountManager.getCurrency(single) == null && AccountManager.getCurrency(plural) == null){
+
+                                if (StringUtils.contains(single, ':') ||
+                                        StringUtils.contains(single, ',') ||
+                                        StringUtils.contains(plural, ':') ||
+                                        StringUtils.contains(plural, ',')) {
+                                    sender.sendMessage("§c§l[Eco] §cInvalid character present.");
+                                    return;
+                                }
 
                                 Currency currency = new Currency(UUID.randomUUID(), single, plural);
 
