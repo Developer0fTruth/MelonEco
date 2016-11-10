@@ -1,9 +1,11 @@
 package com.turqmelon.MelonEco.data;
 
+import com.turqmelon.MelonEco.MelonEco;
 import com.turqmelon.MelonEco.utils.Account;
 import com.turqmelon.MelonEco.utils.AccountManager;
 import com.turqmelon.MelonEco.utils.CachedTopList;
 import com.turqmelon.MelonEco.utils.Currency;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 
 import java.sql.*;
@@ -330,7 +332,12 @@ public class MySQLStorage extends DataStore {
 
     @Override
     public void saveAccount(Account account) {
-        if (getConnection() == null) return;
+        if (Bukkit.getServer().isPrimaryThread()) {
+            Bukkit.getScheduler().runTaskAsynchronously(MelonEco.getInstance(), () -> saveAccount(account));
+            return;
+        }
+        if (getConnection() == null)
+            return;
         reviveConnection();
 
 
