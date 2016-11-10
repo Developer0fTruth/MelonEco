@@ -59,7 +59,7 @@ public class MySQLStorage extends DataStore {
         // setup necessary tables
         if (getConnection() != null) {
             try {
-                PreparedStatement stmt = getConnection().prepareStatement("CREATE TABLE IF NOT EXISTS " + getTablePrefix() + "_currencies" +
+                try (PreparedStatement currencyTableStmt = getConnection().prepareStatement("CREATE TABLE IF NOT EXISTS " + getTablePrefix() + "_currencies" +
                         "(" +
                         "    id INT PRIMARY KEY AUTO_INCREMENT," +
                         "    uuid VARCHAR(255)," +
@@ -71,23 +71,26 @@ public class MySQLStorage extends DataStore {
                         "    is_default INT," +
                         "    payable INT," +
                         "    color VARCHAR(255)" +
-                        ");");
-                stmt.execute();
-                stmt = getConnection().prepareStatement("CREATE TABLE IF NOT EXISTS " + getTablePrefix() + "_accounts" +
+                        ");")) {
+                    currencyTableStmt.execute();
+                }
+                try (PreparedStatement accountTableStmt = getConnection().prepareStatement("CREATE TABLE IF NOT EXISTS " + getTablePrefix() + "_accounts" +
                         "(" +
                         "    id INT PRIMARY KEY AUTO_INCREMENT," +
                         "    nickname VARCHAR(255)," +
                         "    uuid VARCHAR(255)," +
                         "    payable INT" +
-                        ");");
-                stmt.execute();
-                stmt = getConnection().prepareStatement("CREATE TABLE IF NOT EXISTS " + getTablePrefix() + "_balances" +
+                        ");")) {
+                    accountTableStmt.execute();
+                }
+                try (PreparedStatement balancesTableStmt = getConnection().prepareStatement("CREATE TABLE IF NOT EXISTS " + getTablePrefix() + "_balances" +
                         "(" +
                         "    account_id VARCHAR(255)," +
                         "    currency_id VARCHAR(255)," +
                         "    balance DECIMAL" +
-                        ");");
-                stmt.execute();
+                        ");")) {
+                    balancesTableStmt.execute();
+                }
 
             } catch (SQLException e) {
                 e.printStackTrace();
@@ -108,29 +111,31 @@ public class MySQLStorage extends DataStore {
 
     @Override
     public void loadCurrencies() {
-        if (getConnection() == null) return;
+        if (getConnection() == null)
+            return;
         reviveConnection();
-        try {
-            PreparedStatement stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_currencies");
-            ResultSet set = stmt.executeQuery();
-            while (set.next()) {
-                UUID uuid = UUID.fromString(set.getString("uuid"));
-                String singular = set.getString("name_singular");
-                String plural = set.getString("name_plural");
-                double defaultBalance = set.getDouble("default_balance");
-                String symbol = set.getString("symbol");
-                boolean decimals = set.getInt("decimals_supported") == 1;
-                boolean isDefault = set.getInt("is_default") == 1;
-                boolean payable = set.getInt("payable") == 1;
-                ChatColor color = ChatColor.valueOf(set.getString("color"));
-                Currency currency = new Currency(uuid, singular, plural);
-                currency.setDefaultBalance(defaultBalance);
-                currency.setSymbol(symbol);
-                currency.setDecimalSupported(decimals);
-                currency.setDefaultCurrency(isDefault);
-                currency.setPayable(payable);
-                currency.setColor(color);
-                AccountManager.getCurrencies().add(currency);
+
+        try (PreparedStatement stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_currencies")) {
+            try (ResultSet set = stmt.executeQuery()) {
+                while (set.next()) {
+                    UUID uuid = UUID.fromString(set.getString("uuid"));
+                    String singular = set.getString("name_singular");
+                    String plural = set.getString("name_plural");
+                    double defaultBalance = set.getDouble("default_balance");
+                    String symbol = set.getString("symbol");
+                    boolean decimals = set.getInt("decimals_supported") == 1;
+                    boolean isDefault = set.getInt("is_default") == 1;
+                    boolean payable = set.getInt("payable") == 1;
+                    ChatColor color = ChatColor.valueOf(set.getString("color"));
+                    Currency currency = new Currency(uuid, singular, plural);
+                    currency.setDefaultBalance(defaultBalance);
+                    currency.setSymbol(symbol);
+                    currency.setDecimalSupported(decimals);
+                    currency.setDefaultCurrency(isDefault);
+                    currency.setPayable(payable);
+                    currency.setColor(color);
+                    AccountManager.getCurrencies().add(currency);
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -139,37 +144,41 @@ public class MySQLStorage extends DataStore {
 
     @Override
     public void saveCurrency(Currency currency) {
-        if (getConnection() == null) return;
+        if (getConnection() == null)
+            return;
         reviveConnection();
 
-        try {
-            PreparedStatement stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_currencies WHERE uuid = ? LIMIT 1;");
+
+        try (PreparedStatement stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_currencies WHERE uuid = ? LIMIT 1;")) {
             stmt.setString(1, currency.getUuid().toString());
-            ResultSet rs = stmt.executeQuery();
-            int resultCount = rs.last() ? rs.getRow() : 0;
-            rs.close();
-            if (resultCount == 0) {
-                stmt = getConnection().prepareStatement("INSERT INTO " + getTablePrefix() + "_currencies (uuid, name_singular, name_plural, default_balance, symbol, decimals_supported, is_default, payable, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                stmt.setString(1, currency.getUuid().toString());
-                stmt.setString(2, currency.getSingular());
-                stmt.setString(3, currency.getPlural());
-                stmt.setDouble(4, currency.getDefaultBalance());
-                stmt.setString(5, currency.getSymbol());
-                stmt.setInt(6, currency.isDecimalSupported() ? 1 : 0);
-                stmt.setInt(7, currency.isDefaultCurrency() ? 1 : 0);
-                stmt.setInt(8, currency.isPayable() ? 1 : 0);
-                stmt.setString(9, currency.getColor().name());
-                stmt.execute();
-            } else {
-                stmt = getConnection().prepareStatement("UPDATE " + getTablePrefix() + "_currencies SET default_balance = ?, symbol = ?, decimals_supported = ?, is_default = ?, payable = ?, color = ? WHERE uuid = ?");
-                stmt.setDouble(1, currency.getDefaultBalance());
-                stmt.setString(2, currency.getSymbol());
-                stmt.setInt(3, currency.isDecimalSupported() ? 1 : 0);
-                stmt.setInt(4, currency.isDefaultCurrency() ? 1 : 0);
-                stmt.setInt(5, currency.isPayable() ? 1 : 0);
-                stmt.setString(6, currency.getColor().name());
-                stmt.setString(7, currency.getUuid().toString());
-                stmt.execute();
+            try (ResultSet rs = stmt.executeQuery()) {
+                int resultCount = rs.last() ? rs.getRow() : 0;
+
+                if (resultCount == 0) {
+                    try (PreparedStatement insertStmt = getConnection().prepareStatement("INSERT INTO " + getTablePrefix() + "_currencies (uuid, name_singular, name_plural, default_balance, symbol, decimals_supported, is_default, payable, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                        insertStmt.setString(1, currency.getUuid().toString());
+                        insertStmt.setString(2, currency.getSingular());
+                        insertStmt.setString(3, currency.getPlural());
+                        insertStmt.setDouble(4, currency.getDefaultBalance());
+                        insertStmt.setString(5, currency.getSymbol());
+                        insertStmt.setInt(6, currency.isDecimalSupported() ? 1 : 0);
+                        insertStmt.setInt(7, currency.isDefaultCurrency() ? 1 : 0);
+                        insertStmt.setInt(8, currency.isPayable() ? 1 : 0);
+                        insertStmt.setString(9, currency.getColor().name());
+                        insertStmt.execute();
+                    }
+                } else {
+                    try (PreparedStatement updateStmt = getConnection().prepareStatement("UPDATE " + getTablePrefix() + "_currencies SET default_balance = ?, symbol = ?, decimals_supported = ?, is_default = ?, payable = ?, color = ? WHERE uuid = ?")) {
+                        updateStmt.setDouble(1, currency.getDefaultBalance());
+                        updateStmt.setString(2, currency.getSymbol());
+                        updateStmt.setInt(3, currency.isDecimalSupported() ? 1 : 0);
+                        updateStmt.setInt(4, currency.isDefaultCurrency() ? 1 : 0);
+                        updateStmt.setInt(5, currency.isPayable() ? 1 : 0);
+                        updateStmt.setString(6, currency.getColor().name());
+                        updateStmt.setString(7, currency.getUuid().toString());
+                        updateStmt.execute();
+                    }
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -179,15 +188,19 @@ public class MySQLStorage extends DataStore {
 
     @Override
     public void deleteCurrency(Currency currency) {
-        if (getConnection() == null) return;
+        if (getConnection() == null)
+            return;
         reviveConnection();
+
         try {
-            PreparedStatement stmt = getConnection().prepareStatement("DELETE FROM " + getTablePrefix() + "_currencies WHERE uuid = ?");
-            stmt.setString(1, currency.getUuid().toString());
-            stmt.execute();
-            stmt = getConnection().prepareStatement("DELETE FROM " + getTablePrefix() + "_balances WHERE currency_id = ?");
-            stmt.setString(1, currency.getUuid().toString());
-            stmt.execute();
+            try (PreparedStatement stmt = getConnection().prepareStatement("DELETE FROM " + getTablePrefix() + "_currencies WHERE uuid = ?")) {
+                stmt.setString(1, currency.getUuid().toString());
+                stmt.execute();
+            }
+            try (PreparedStatement stmt = getConnection().prepareStatement("DELETE FROM " + getTablePrefix() + "_balances WHERE currency_id = ?")) {
+                stmt.setString(1, currency.getUuid().toString());
+                stmt.execute();
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -203,7 +216,8 @@ public class MySQLStorage extends DataStore {
             }
         }
 
-        if (getConnection() == null) return null;
+        if (getConnection() == null)
+            return null;
         reviveConnection();
 
         LinkedHashMap<String, Double> resultPair = new LinkedHashMap<>();
@@ -212,26 +226,28 @@ public class MySQLStorage extends DataStore {
 
             LinkedHashMap<String, Double> idBalancePair = new LinkedHashMap<>();
 
-            PreparedStatement stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_balances WHERE currency_id = ? ORDER BY balance DESC LIMIT " + offset + ", " + amount);
-            stmt.setString(1, currency.getUuid().toString());
-            ResultSet set = stmt.executeQuery();
-            while (set.next()) {
-                idBalancePair.put(set.getString("account_id"), set.getDouble("balance"));
-            }
-            set.close();
-
-            if (idBalancePair.size() > 0) {
-                for (String id : idBalancePair.keySet()) {
-                    stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_accounts WHERE uuid = ? LIMIT 1");
-                    stmt.setString(1, id);
-                    set = stmt.executeQuery();
-                    if (set.next()) {
-                        resultPair.put(set.getString("nickname"), idBalancePair.get(id));
+            try (PreparedStatement stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_balances WHERE currency_id = ? ORDER BY balance DESC LIMIT " + offset + ", " + amount)) {
+                stmt.setString(1, currency.getUuid().toString());
+                try (ResultSet set = stmt.executeQuery()) {
+                    while (set.next()) {
+                        idBalancePair.put(set.getString("account_id"), set.getDouble("balance"));
                     }
-                    set.close();
                 }
-            }
 
+                if (idBalancePair.size() > 0) {
+                    for (String id : idBalancePair.keySet()) {
+                        try (PreparedStatement selecAccountStmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_accounts WHERE uuid = ? LIMIT 1")) {
+                            selecAccountStmt.setString(1, id);
+                            try (ResultSet set = selecAccountStmt.executeQuery()) {
+                                if (set.next()) {
+                                    resultPair.put(set.getString("nickname"), idBalancePair.get(id));
+                                }
+                            }
+                        }
+                    }
+                }
+
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -244,16 +260,18 @@ public class MySQLStorage extends DataStore {
     }
 
     private Account returnAccountWithBalances(Account account) {
-        if (account == null) return null;
+        if (account == null)
+            return null;
 
-        try {
-            PreparedStatement stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_balances WHERE account_id = ?");
+
+        try (PreparedStatement stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_balances WHERE account_id = ?")) {
             stmt.setString(1, account.getUuid().toString());
-            ResultSet set = stmt.executeQuery();
-            while (set.next()) {
-                Currency currency = AccountManager.getCurrency(UUID.fromString(set.getString("currency_id")));
-                if (currency == null) continue;
-                account.setBalance(currency, set.getDouble("balance"));
+            try (ResultSet set = stmt.executeQuery()) {
+                while (set.next()) {
+                    Currency currency = AccountManager.getCurrency(UUID.fromString(set.getString("currency_id")));
+                    if (currency == null) continue;
+                    account.setBalance(currency, set.getDouble("balance"));
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -268,15 +286,15 @@ public class MySQLStorage extends DataStore {
 
         if (getConnection() != null) {
             reviveConnection();
-            try {
-                PreparedStatement stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_accounts WHERE nickname = ? LIMIT 1");
+
+            try (PreparedStatement stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_accounts WHERE nickname = ? LIMIT 1")) {
                 stmt.setString(1, name);
-                ResultSet set = stmt.executeQuery();
-                if (set.next()) {
-                    account = new Account(UUID.fromString(set.getString("uuid")), set.getString("nickname"));
-                    account.setCanReceiveCurrency(set.getInt("payable") == 1);
+                try (ResultSet set = stmt.executeQuery()) {
+                    if (set.next()) {
+                        account = new Account(UUID.fromString(set.getString("uuid")), set.getString("nickname"));
+                        account.setCanReceiveCurrency(set.getInt("payable") == 1);
+                    }
                 }
-                set.close();
             } catch (SQLException e) {
                 e.printStackTrace();
             }
@@ -293,15 +311,15 @@ public class MySQLStorage extends DataStore {
 
         if (getConnection() != null) {
             reviveConnection();
-            try {
-                PreparedStatement stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_accounts WHERE uuid = ? LIMIT 1");
+
+            try (PreparedStatement stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_accounts WHERE uuid = ? LIMIT 1")) {
                 stmt.setString(1, uuid.toString());
-                ResultSet set = stmt.executeQuery();
-                if (set.next()) {
-                    account = new Account(uuid, set.getString("nickname"));
-                    account.setCanReceiveCurrency(set.getInt("payable") == 1);
+                try (ResultSet set = stmt.executeQuery()) {
+                    if (set.next()) {
+                        account = new Account(uuid, set.getString("nickname"));
+                        account.setCanReceiveCurrency(set.getInt("payable") == 1);
+                    }
                 }
-                set.close();
             } catch (SQLException e) {
                 e.printStackTrace();
             }
@@ -315,48 +333,54 @@ public class MySQLStorage extends DataStore {
         if (getConnection() == null) return;
         reviveConnection();
 
-        try {
-            PreparedStatement stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_accounts WHERE uuid = ? LIMIT 1");
+
+        try (PreparedStatement stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_accounts WHERE uuid = ? LIMIT 1")) {
             stmt.setString(1, account.getUuid().toString());
-            ResultSet rs = stmt.executeQuery();
-            int resultCount = rs.last() ? rs.getRow() : 0;
-            rs.close();
+            try (ResultSet rs = stmt.executeQuery()) {
+                int resultCount = rs.last() ? rs.getRow() : 0;
 
-            if (resultCount == 0) {
-                stmt = getConnection().prepareStatement("INSERT INTO " + getTablePrefix() + "_accounts (nickname, uuid, payable) VALUES (?, ?, ?)");
-                stmt.setString(1, account.getDisplayName());
-                stmt.setString(2, account.getUuid().toString());
-                stmt.setInt(3, account.isCanReceiveCurrency() ? 1 : 0);
-                stmt.execute();
-            } else {
-                stmt = getConnection().prepareStatement("UPDATE " + getTablePrefix() + "_accounts SET nickname = ?, payable = ? WHERE uuid = ?");
-                stmt.setString(1, account.getDisplayName());
-                stmt.setInt(2, account.isCanReceiveCurrency() ? 1 : 0);
-                stmt.setString(3, account.getUuid().toString());
-                stmt.execute();
-            }
 
-            for (Currency currency : AccountManager.getCurrencies()) {
-                double balance = account.getBalance(currency);
-                if (balance != currency.getDefaultBalance()) {
-                    stmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_balances WHERE account_id = ? AND currency_id = ? LIMIT 1");
-                    stmt.setString(1, account.getUuid().toString());
-                    stmt.setString(2, currency.getUuid().toString());
-                    rs = stmt.executeQuery();
-                    resultCount = rs.last() ? rs.getRow() : 0;
-                    rs.close();
-                    if (resultCount == 0) {
-                        stmt = getConnection().prepareStatement("INSERT INTO " + getTablePrefix() + "_balances (account_id, currency_id, balance) VALUES (?, ?, ?)");
-                        stmt.setString(1, account.getUuid().toString());
-                        stmt.setString(2, currency.getUuid().toString());
-                        stmt.setDouble(3, balance);
-                        stmt.execute();
-                    } else {
-                        stmt = getConnection().prepareStatement("UPDATE " + getTablePrefix() + "_balances SET balance = ? WHERE account_id = ? AND currency_id = ?");
-                        stmt.setDouble(1, balance);
-                        stmt.setString(2, account.getUuid().toString());
-                        stmt.setString(3, currency.getUuid().toString());
-                        stmt.execute();
+                if (resultCount == 0) {
+                    try (PreparedStatement insertStmt = getConnection().prepareStatement("INSERT INTO " + getTablePrefix() + "_accounts (nickname, uuid, payable) VALUES (?, ?, ?)")) {
+                        insertStmt.setString(1, account.getDisplayName());
+                        insertStmt.setString(2, account.getUuid().toString());
+                        insertStmt.setInt(3, account.isCanReceiveCurrency() ? 1 : 0);
+                        insertStmt.execute();
+                    }
+                } else {
+                    try (PreparedStatement updateStmt = getConnection().prepareStatement("UPDATE " + getTablePrefix() + "_accounts SET nickname = ?, payable = ? WHERE uuid = ?")) {
+                        updateStmt.setString(1, account.getDisplayName());
+                        updateStmt.setInt(2, account.isCanReceiveCurrency() ? 1 : 0);
+                        updateStmt.setString(3, account.getUuid().toString());
+                        updateStmt.execute();
+                    }
+                }
+
+                for (Currency currency : AccountManager.getCurrencies()) {
+                    double balance = account.getBalance(currency);
+                    if (balance != currency.getDefaultBalance()) {
+                        try (PreparedStatement balSelectStmt = getConnection().prepareStatement("SELECT * FROM " + getTablePrefix() + "_balances WHERE account_id = ? AND currency_id = ? LIMIT 1")) {
+                            balSelectStmt.setString(1, account.getUuid().toString());
+                            balSelectStmt.setString(2, currency.getUuid().toString());
+                            try (ResultSet balRs = balSelectStmt.executeQuery()) {
+                                resultCount = balRs.last() ? balRs.getRow() : 0;
+                            }
+                            if (resultCount == 0) {
+                                try (PreparedStatement insertStmt = getConnection().prepareStatement("INSERT INTO " + getTablePrefix() + "_balances (account_id, currency_id, balance) VALUES (?, ?, ?)")) {
+                                    insertStmt.setString(1, account.getUuid().toString());
+                                    insertStmt.setString(2, currency.getUuid().toString());
+                                    insertStmt.setDouble(3, balance);
+                                    insertStmt.execute();
+                                }
+                            } else {
+                                try (PreparedStatement updateStmt = getConnection().prepareStatement("UPDATE " + getTablePrefix() + "_balances SET balance = ? WHERE account_id = ? AND currency_id = ?")) {
+                                    updateStmt.setDouble(1, balance);
+                                    updateStmt.setString(2, account.getUuid().toString());
+                                    updateStmt.setString(3, currency.getUuid().toString());
+                                    updateStmt.execute();
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -369,16 +393,19 @@ public class MySQLStorage extends DataStore {
 
     @Override
     public void deleteAccount(Account account) {
-        if (getConnection() == null) return;
+        if (getConnection() == null)
+            return;
         reviveConnection();
 
         try {
-            PreparedStatement stmt = getConnection().prepareStatement("DELETE FROM " + getTablePrefix() + "_accounts WHERE uuid = ? LIMIT 1");
-            stmt.setString(1, account.getUuid().toString());
-            stmt.execute();
-            stmt = getConnection().prepareStatement("DELETE FROM " + getTablePrefix() + "_balances WHERE account_id = ?");
-            stmt.setString(1, account.getUuid().toString());
-            stmt.execute();
+            try (PreparedStatement stmt = getConnection().prepareStatement("DELETE FROM " + getTablePrefix() + "_accounts WHERE uuid = ? LIMIT 1")) {
+                stmt.setString(1, account.getUuid().toString());
+                stmt.execute();
+            }
+            try (PreparedStatement stmt = getConnection().prepareStatement("DELETE FROM " + getTablePrefix() + "_balances WHERE account_id = ?")) {
+                stmt.setString(1, account.getUuid().toString());
+                stmt.execute();
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }
